@@ -7,7 +7,7 @@ import json
 
 ##### Risk Management Agent #####
 def risk_management_agent(state: AgentState):
-    """Controls position sizing based on real-world risk factors for multiple tickers."""
+    """Controls position sizing based on real-world risk factors for multiple tickers, including options-specific risk management."""
     portfolio = state["data"]["portfolio"]
     data = state["data"]
     tickers = data["tickers"]
@@ -52,9 +52,13 @@ def risk_management_agent(state: AgentState):
         # Ensure we don't exceed available cash
         max_position_size = min(remaining_position_limit, portfolio.get("cash", 0))
 
+        # Options-specific risk management
+        options_risk = manage_options_risk(portfolio, ticker, current_price)
+
         risk_analysis[ticker] = {
             "remaining_position_limit": float(max_position_size),
             "current_price": float(current_price),
+            "options_risk": options_risk,
             "reasoning": {
                 "portfolio_value": float(total_portfolio_value),
                 "current_position": float(current_position_value),
@@ -80,4 +84,28 @@ def risk_management_agent(state: AgentState):
     return {
         "messages": state["messages"] + [message],
         "data": data,
+    }
+
+
+def manage_options_risk(portfolio, ticker, current_price):
+    """
+    Manage options-specific risk, including delta, gamma, and other Greeks.
+    """
+    options_positions = portfolio.get("options_positions", {}).get(ticker, [])
+    total_delta = 0
+    total_gamma = 0
+    total_theta = 0
+    total_vega = 0
+
+    for option in options_positions:
+        total_delta += option.get("delta", 0)
+        total_gamma += option.get("gamma", 0)
+        total_theta += option.get("theta", 0)
+        total_vega += option.get("vega", 0)
+
+    return {
+        "total_delta": total_delta,
+        "total_gamma": total_gamma,
+        "total_theta": total_theta,
+        "total_vega": total_vega,
     }

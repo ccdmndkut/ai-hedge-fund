@@ -13,6 +13,9 @@ class CathieWoodSignal(BaseModel):
     signal: Literal["bullish", "bearish", "neutral"]
     confidence: float
     reasoning: str
+    options_signal: Literal["bullish", "bearish", "neutral"] | None = None
+    options_confidence: float | None = None
+    options_reasoning: str | None = None
 
 
 def cathie_wood_agent(state: AgentState):
@@ -22,6 +25,7 @@ def cathie_wood_agent(state: AgentState):
     2. Focuses on industries with rapid adoption curves and massive TAM (Total Addressable Market).
     3. Invests mostly in AI, robotics, genomic sequencing, fintech, and blockchain.
     4. Willing to endure short-term volatility for long-term gains.
+    5. Options trading strategies and analysis.
     """
     data = state["data"]
     end_date = data["end_date"]
@@ -71,9 +75,12 @@ def cathie_wood_agent(state: AgentState):
         progress.update_status("cathie_wood_agent", ticker, "Calculating valuation & high-growth scenario")
         valuation_analysis = analyze_cathie_wood_valuation(financial_line_items, market_cap)
 
+        progress.update_status("cathie_wood_agent", ticker, "Analyzing options trading strategies")
+        options_analysis = analyze_options_trading(metrics, financial_line_items)
+
         # Combine partial scores or signals
-        total_score = disruptive_analysis["score"] + innovation_analysis["score"] + valuation_analysis["score"]
-        max_possible_score = 15  # Adjust weighting as desired
+        total_score = disruptive_analysis["score"] + innovation_analysis["score"] + valuation_analysis["score"] + options_analysis["score"]
+        max_possible_score = 20  # Adjust weighting as desired
 
         if total_score >= 0.7 * max_possible_score:
             signal = "bullish"
@@ -88,7 +95,8 @@ def cathie_wood_agent(state: AgentState):
             "max_score": max_possible_score,
             "disruptive_analysis": disruptive_analysis,
             "innovation_analysis": innovation_analysis,
-            "valuation_analysis": valuation_analysis
+            "valuation_analysis": valuation_analysis,
+            "options_analysis": options_analysis
         }
 
         progress.update_status("cathie_wood_agent", ticker, "Generating Cathie Wood style analysis")
@@ -102,7 +110,10 @@ def cathie_wood_agent(state: AgentState):
         cw_analysis[ticker] = {
             "signal": cw_output.signal,
             "confidence": cw_output.confidence,
-            "reasoning": cw_output.reasoning
+            "reasoning": cw_output.reasoning,
+            "options_signal": cw_output.options_signal,
+            "options_confidence": cw_output.options_confidence,
+            "options_reasoning": cw_output.options_reasoning
         }
 
         progress.update_status("cathie_wood_agent", ticker, "Done")
@@ -420,6 +431,40 @@ def analyze_cathie_wood_valuation(financial_line_items: list, market_cap: float)
     }
 
 
+def analyze_options_trading(metrics: list, financial_line_items: list) -> dict:
+    """
+    Analyze options trading strategies and generate options trading signals.
+    """
+    score = 0
+    details = []
+
+    if not metrics or not financial_line_items:
+        return {"score": score, "details": "Insufficient data for options trading analysis"}
+
+    # Example options trading analysis
+    # 1. Check implied volatility
+    # 2. Analyze open interest
+    # 3. Generate options trading signals based on the analysis
+
+    # Placeholder logic for options trading analysis
+    implied_volatility = 0.25  # Example value
+    open_interest = 1000  # Example value
+
+    if implied_volatility > 0.3:
+        score += 2
+        details.append("High implied volatility, potential for options trading opportunities.")
+    else:
+        details.append("Low implied volatility, limited options trading opportunities.")
+
+    if open_interest > 500:
+        score += 2
+        details.append("High open interest, potential for liquid options trading.")
+    else:
+        details.append("Low open interest, limited options trading opportunities.")
+
+    return {"score": score, "details": "; ".join(details)}
+
+
 def generate_cathie_wood_output(
     ticker: str,
     analysis_data: dict[str, any],
@@ -438,7 +483,8 @@ def generate_cathie_wood_output(
             "3. Focus on technology, healthcare, or other future-facing sectors.\n"
             "4. Consider multi-year time horizons for potential breakthroughs.\n"
             "5. Accept higher volatility in pursuit of high returns.\n"
-            "6. Evaluate management's vision and ability to invest in R&D.\n\n"
+            "6. Evaluate management's vision and ability to invest in R&D.\n"
+            "7. Analyze options trading strategies and generate options trading signals.\n\n"
             "Rules:\n"
             "- Identify disruptive or breakthrough technology.\n"
             "- Evaluate strong potential for multi-year revenue growth.\n"
@@ -452,7 +498,7 @@ def generate_cathie_wood_output(
             "Analysis Data for {ticker}:\n"
             "{analysis_data}\n\n"
             "Return the trading signal in this JSON format:\n"
-            "{{\n  \"signal\": \"bullish/bearish/neutral\",\n  \"confidence\": float (0-100),\n  \"reasoning\": \"string\"\n}}"""
+            "{{\n  \"signal\": \"bullish/bearish/neutral\",\n  \"confidence\": float (0-100),\n  \"reasoning\": \"string\",\n  \"options_signal\": \"bullish/bearish/neutral\",\n  \"options_confidence\": float (0-100),\n  \"options_reasoning\": \"string\"\n}}"""
         )
     ])
 
@@ -465,7 +511,10 @@ def generate_cathie_wood_output(
         return CathieWoodSignal(
             signal="neutral",
             confidence=0.0,
-            reasoning="Error in analysis, defaulting to neutral"
+            reasoning="Error in analysis, defaulting to neutral",
+            options_signal="neutral",
+            options_confidence=0.0,
+            options_reasoning="Error in generating options analysis; defaulting to neutral."
         )
 
     return call_llm(

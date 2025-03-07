@@ -10,10 +10,13 @@ from utils.llm import call_llm
 
 
 class PortfolioDecision(BaseModel):
-    action: Literal["buy", "sell", "short", "cover", "hold"]
-    quantity: int = Field(description="Number of shares to trade")
+    action: Literal["buy", "sell", "short", "cover", "hold", "buy_call", "buy_put", "sell_call", "sell_put"]
+    quantity: int = Field(description="Number of shares or contracts to trade")
     confidence: float = Field(description="Confidence in the decision, between 0.0 and 100.0")
     reasoning: str = Field(description="Reasoning for the decision")
+    option_type: Literal["call", "put"] | None = Field(description="Type of option for options trades", default=None)
+    strike_price: float | None = Field(description="Strike price for options trades", default=None)
+    expiration_date: str | None = Field(description="Expiration date for options trades", default=None)
 
 
 class PortfolioManagerOutput(BaseModel):
@@ -118,6 +121,11 @@ def generate_trading_decision(
                 * Cover quantity must be ≤ current short position shares
                 * Short quantity must respect margin requirements
               
+              - For options positions:
+                * Only buy calls/puts if you have available cash
+                * Only sell calls/puts if you currently hold the options
+                * Consider options strategies like buying calls/puts, selling covered calls
+              
               - The max_shares values are pre-calculated to respect position limits
               - Consider both long and short opportunities based on signals
               - Maintain appropriate risk management with both long and short exposure
@@ -127,6 +135,10 @@ def generate_trading_decision(
               - "sell": Close or reduce long position
               - "short": Open or add to short position
               - "cover": Close or reduce short position
+              - "buy_call": Buy call options
+              - "buy_put": Buy put options
+              - "sell_call": Sell call options
+              - "sell_put": Sell put options
               - "hold": No action
 
               Inputs:
@@ -159,10 +171,13 @@ def generate_trading_decision(
               {{
                 "decisions": {{
                   "TICKER1": {{
-                    "action": "buy/sell/short/cover/hold",
+                    "action": "buy/sell/short/cover/hold/buy_call/buy_put/sell_call/sell_put",
                     "quantity": integer,
                     "confidence": float,
-                    "reasoning": "string"
+                    "reasoning": "string",
+                    "option_type": "call/put" (for options trades),
+                    "strike_price": float (for options trades),
+                    "expiration_date": "YYYY-MM-DD" (for options trades)
                   }},
                   "TICKER2": {{
                     ...

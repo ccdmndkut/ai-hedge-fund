@@ -81,10 +81,16 @@ class Backtester:
                     "long": 0.0,   # Realized gains from long positions
                     "short": 0.0,  # Realized gains from short positions
                 } for ticker in tickers
+            },
+            "options_positions": {
+                ticker: {
+                    "calls": [],
+                    "puts": []
+                } for ticker in tickers
             }
         }
 
-    def execute_trade(self, ticker: str, action: str, quantity: float, current_price: float):
+    def execute_trade(self, ticker: str, action: str, quantity: float, current_price: float, option_type: str = None, strike_price: float = None, expiration_date: str = None):
         """
         Execute trades with support for both long and short positions.
         `quantity` is the number of shares the agent wants to buy/sell/short/cover.
@@ -245,6 +251,54 @@ class Backtester:
 
                 return quantity
 
+        elif action == "buy_call":
+            cost = quantity * current_price
+            if cost <= self.portfolio["cash"]:
+                self.portfolio["cash"] -= cost
+                self.portfolio["options_positions"][ticker]["calls"].append({
+                    "quantity": quantity,
+                    "strike_price": strike_price,
+                    "expiration_date": expiration_date,
+                    "cost_basis": current_price
+                })
+                return quantity
+
+        elif action == "buy_put":
+            cost = quantity * current_price
+            if cost <= self.portfolio["cash"]:
+                self.portfolio["cash"] -= cost
+                self.portfolio["options_positions"][ticker]["puts"].append({
+                    "quantity": quantity,
+                    "strike_price": strike_price,
+                    "expiration_date": expiration_date,
+                    "cost_basis": current_price
+                })
+                return quantity
+
+        elif action == "sell_call":
+            options = self.portfolio["options_positions"][ticker]["calls"]
+            for option in options:
+                if option["strike_price"] == strike_price and option["expiration_date"] == expiration_date:
+                    quantity = min(quantity, option["quantity"])
+                    if quantity > 0:
+                        self.portfolio["cash"] += quantity * current_price
+                        option["quantity"] -= quantity
+                        if option["quantity"] == 0:
+                            options.remove(option)
+                        return quantity
+
+        elif action == "sell_put":
+            options = self.portfolio["options_positions"][ticker]["puts"]
+            for option in options:
+                if option["strike_price"] == strike_price and option["expiration_date"] == expiration_date:
+                    quantity = min(quantity, option["quantity"])
+                    if quantity > 0:
+                        self.portfolio["cash"] += quantity * current_price
+                        option["quantity"] -= quantity
+                        if option["quantity"] == 0:
+                            options.remove(option)
+                        return quantity
+
         return 0
 
     def calculate_portfolio_value(self, current_prices):
@@ -253,6 +307,7 @@ class Backtester:
           - cash
           - market value of long positions
           - unrealized gains/losses for short positions
+          - market value of options positions
         """
         total_value = self.portfolio["cash"]
 
@@ -267,6 +322,13 @@ class Backtester:
             # Short position unrealized PnL = short_shares * (short_cost_basis - current_price)
             if position["short"] > 0:
                 total_value += position["short"] * (position["short_cost_basis"] - price)
+
+            # Options positions value
+            for option in self.portfolio["options_positions"][ticker]["calls"]:
+                total_value += option["quantity"] * (price - option["strike_price"])
+
+            for option in self.portfolio["options_positions"][ticker]["puts"]:
+                total_value += option["quantity"] * (option["strike_price"] - price)
 
         return total_value
 
@@ -368,8 +430,11 @@ class Backtester:
             for ticker in self.tickers:
                 decision = decisions.get(ticker, {"action": "hold", "quantity": 0})
                 action, quantity = decision.get("action", "hold"), decision.get("quantity", 0)
+                option_type = decision.get("option_type", None)
+                strike_price = decision.get("strike_price", None)
+                expiration_date = decision.get("expiration_date", None)
 
-                executed_quantity = self.execute_trade(ticker, action, quantity, current_prices[ticker])
+                executed_quantity = self.execute_trade(ticker, action, quantity, current_prices[ticker], option_type, strike_price, expiration_date)
                 executed_trades[ticker] = executed_quantity
 
             # ---------------------------------------------------------------
