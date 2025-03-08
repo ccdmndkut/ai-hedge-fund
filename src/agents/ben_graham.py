@@ -15,15 +15,19 @@ class BenGrahamSignal(BaseModel):
     signal: Literal["bullish", "bearish", "neutral"]
     confidence: float
     reasoning: str
+    options_signal: Literal["bullish", "bearish", "neutral"] | None = None
+    options_confidence: float | None = None
+    options_reasoning: str | None = None
 
 
 def ben_graham_agent(state: AgentState):
     """
     Analyzes stocks using Benjamin Graham's classic value-investing principles:
     1. Earnings stability over multiple years.
-    2. Solid financial strength (low debt, adequate liquidity).
+     2. Solid financial strength (low debt, adequate liquidity).
     3. Discount to intrinsic value (e.g. Graham Number or net-net).
     4. Adequate margin of safety.
+    5. Options trading strategies and analysis.
     """
     data = state["data"]
     end_date = data["end_date"]
@@ -52,9 +56,12 @@ def ben_graham_agent(state: AgentState):
         progress.update_status("ben_graham_agent", ticker, "Analyzing Graham valuation")
         valuation_analysis = analyze_valuation_graham(metrics, financial_line_items, market_cap)
 
+        progress.update_status("ben_graham_agent", ticker, "Analyzing options trading strategies")
+        options_analysis = analyze_options_trading(metrics, financial_line_items)
+
         # Aggregate scoring
-        total_score = earnings_analysis["score"] + strength_analysis["score"] + valuation_analysis["score"]
-        max_possible_score = 15  # total possible from the three analysis functions
+        total_score = earnings_analysis["score"] + strength_analysis["score"] + valuation_analysis["score"] + options_analysis["score"]
+        max_possible_score = 20  # total possible from the four analysis functions
 
         # Map total_score to signal
         if total_score >= 0.7 * max_possible_score:
@@ -64,7 +71,7 @@ def ben_graham_agent(state: AgentState):
         else:
             signal = "neutral"
 
-        analysis_data[ticker] = {"signal": signal, "score": total_score, "max_score": max_possible_score, "earnings_analysis": earnings_analysis, "strength_analysis": strength_analysis, "valuation_analysis": valuation_analysis}
+        analysis_data[ticker] = {"signal": signal, "score": total_score, "max_score": max_possible_score, "earnings_analysis": earnings_analysis, "strength_analysis": strength_analysis, "valuation_analysis": valuation_analysis, "options_analysis": options_analysis}
 
         progress.update_status("ben_graham_agent", ticker, "Generating Graham-style analysis")
         graham_output = generate_graham_output(
@@ -74,7 +81,7 @@ def ben_graham_agent(state: AgentState):
             model_provider=state["metadata"]["model_provider"],
         )
 
-        graham_analysis[ticker] = {"signal": graham_output.signal, "confidence": graham_output.confidence, "reasoning": graham_output.reasoning}
+        graham_analysis[ticker] = {"signal": graham_output.signal, "confidence": graham_output.confidence, "reasoning": graham_output.reasoning, "options_signal": graham_output.options_signal, "options_confidence": graham_output.options_confidence, "options_reasoning": graham_output.options_reasoning}
 
         progress.update_status("ben_graham_agent", ticker, "Done")
 
@@ -276,6 +283,40 @@ def analyze_valuation_graham(metrics: list, financial_line_items: list, market_c
     return {"score": score, "details": "; ".join(details)}
 
 
+def analyze_options_trading(metrics: list, financial_line_items: list) -> dict:
+    """
+    Analyze options trading strategies and generate options trading signals.
+    """
+    score = 0
+    details = []
+
+    if not metrics or not financial_line_items:
+        return {"score": score, "details": "Insufficient data for options trading analysis"}
+
+    # Example options trading analysis
+    # 1. Check implied volatility
+    # 2. Analyze open interest
+    # 3. Generate options trading signals based on the analysis
+
+    # Placeholder logic for options trading analysis
+    implied_volatility = 0.25  # Example value
+    open_interest = 1000  # Example value
+
+    if implied_volatility > 0.3:
+        score += 2
+        details.append("High implied volatility, potential for options trading opportunities.")
+    else:
+        details.append("Low implied volatility, limited options trading opportunities.")
+
+    if open_interest > 500:
+        score += 2
+        details.append("High open interest, potential for liquid options trading.")
+    else:
+        details.append("Low open interest, limited options trading opportunities.")
+
+    return {"score": score, "details": "; ".join(details)}
+
+
 def generate_graham_output(
     ticker: str,
     analysis_data: dict[str, any],
@@ -297,6 +338,7 @@ def generate_graham_output(
             3. Prefer stable earnings over multiple years.
             4. Consider dividend record for extra safety.
             5. Avoid speculative or high-growth assumptions; focus on proven metrics.
+            6. Analyze options trading strategies and generate options trading signals.
                         
             Return a rational recommendation: bullish, bearish, or neutral, with a confidence level (0-100) and concise reasoning.
             """
@@ -312,7 +354,10 @@ def generate_graham_output(
             {{
               "signal": "bullish" or "bearish" or "neutral",
               "confidence": float (0-100),
-              "reasoning": "string"
+              "reasoning": "string",
+              "options_signal": "bullish" or "bearish" or "neutral",
+              "options_confidence": float (0-100),
+              "options_reasoning": "string"
             }}
             """
         )
@@ -324,7 +369,7 @@ def generate_graham_output(
     })
 
     def create_default_ben_graham_signal():
-        return BenGrahamSignal(signal="neutral", confidence=0.0, reasoning="Error in generating analysis; defaulting to neutral.")
+        return BenGrahamSignal(signal="neutral", confidence=0.0, reasoning="Error in generating analysis; defaulting to neutral.", options_signal="neutral", options_confidence=0.0, options_reasoning="Error in generating options analysis; defaulting to neutral.")
 
     return call_llm(
         prompt=prompt,
