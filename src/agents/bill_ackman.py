@@ -66,12 +66,9 @@ def bill_ackman_agent(state: AgentState):
         progress.update_status("bill_ackman_agent", ticker, "Calculating intrinsic value & margin of safety")
         valuation_analysis = analyze_valuation(financial_line_items, market_cap)
         
-        progress.update_status("bill_ackman_agent", ticker, "Analyzing options trading strategies")
-        options_analysis = analyze_options_trading(metrics, financial_line_items)
-        
         # Combine partial scores or signals
-        total_score = quality_analysis["score"] + balance_sheet_analysis["score"] + valuation_analysis["score"] + options_analysis["score"]
-        max_possible_score = 20  # Adjust weighting as desired
+        total_score = quality_analysis["score"] + balance_sheet_analysis["score"] + valuation_analysis["score"]
+        max_possible_score = 15  # Adjust weighting as desired
         
         # Generate a simple buy/hold/sell (bullish/neutral/bearish) signal
         if total_score >= 0.7 * max_possible_score:
@@ -87,8 +84,7 @@ def bill_ackman_agent(state: AgentState):
             "max_score": max_possible_score,
             "quality_analysis": quality_analysis,
             "balance_sheet_analysis": balance_sheet_analysis,
-            "valuation_analysis": valuation_analysis,
-            "options_analysis": options_analysis
+            "valuation_analysis": valuation_analysis
         }
         
         progress.update_status("bill_ackman_agent", ticker, "Generating Ackman analysis")
@@ -344,40 +340,6 @@ def analyze_valuation(financial_line_items: list, market_cap: float) -> dict:
         "intrinsic_value": intrinsic_value,
         "margin_of_safety": margin_of_safety
     }
-
-
-def analyze_options_trading(metrics: list, financial_line_items: list) -> dict:
-    """
-    Analyze options trading strategies and generate options trading signals.
-    """
-    score = 0
-    details = []
-
-    if not metrics or not financial_line_items:
-        return {"score": score, "details": "Insufficient data for options trading analysis"}
-
-    # Example options trading analysis
-    # 1. Check implied volatility
-    # 2. Analyze open interest
-    # 3. Generate options trading signals based on the analysis
-
-    # Placeholder logic for options trading analysis
-    implied_volatility = 0.25  # Example value
-    open_interest = 1000  # Example value
-
-    if implied_volatility > 0.3:
-        score += 2
-        details.append("High implied volatility, potential for options trading opportunities.")
-    else:
-        details.append("Low implied volatility, limited options trading opportunities.")
-
-    if open_interest > 500:
-        score += 2
-        details.append("High open interest, potential for liquid options trading.")
-    else:
-        details.append("Low open interest, limited options trading opportunities.")
-
-    return {"score": score, "details": "; ".join(details)}
 
 
 def generate_ackman_output(
