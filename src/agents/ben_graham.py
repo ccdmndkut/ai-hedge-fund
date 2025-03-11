@@ -41,7 +41,7 @@ def ben_graham_agent(state: AgentState):
         metrics = get_financial_metrics(ticker, end_date, period="annual", limit=10)
 
         progress.update_status("ben_graham_agent", ticker, "Gathering financial line items")
-        financial_line_items = search_line_items(ticker, ["earnings_per_share", "revenue", "net_income", "book_value_per_share", "total_assets", "total_liabilities", "current_assets", "current_liabilities", "dividends_and_other_cash_distributions", "outstanding_shares"], end_date, period="annual", limit=10)
+        financial_line_items = search_line_items(ticker, ["earnings_per_share", "revenue", "net_income", "book_value_per_share", "total_assets", "total_liabilities", "current_assets", "current_liabilities", "dividends_and_other_cash_distributions", "outstanding_shres"], end_date, period="annual", limit=10)
 
         progress.update_status("ben_graham_agent", ticker, "Getting market cap")
         market_cap = get_market_cap(ticker, end_date)
@@ -279,40 +279,6 @@ def analyze_valuation_graham(metrics: list, financial_line_items: list, market_c
         else:
             details.append("Current price is zero or invalid; can't compute margin of safety.")
     # else: already appended details for missing graham_number
-
-    return {"score": score, "details": "; ".join(details)}
-
-
-def analyze_options_trading(metrics: list, financial_line_items: list) -> dict:
-    """
-    Analyze options trading strategies and generate options trading signals.
-    """
-    score = 0
-    details = []
-
-    if not metrics or not financial_line_items:
-        return {"score": score, "details": "Insufficient data for options trading analysis"}
-
-    # Example options trading analysis
-    # 1. Check implied volatility
-    # 2. Analyze open interest
-    # 3. Generate options trading signals based on the analysis
-
-    # Placeholder logic for options trading analysis
-    implied_volatility = 0.25  # Example value
-    open_interest = 1000  # Example value
-
-    if implied_volatility > 0.3:
-        score += 2
-        details.append("High implied volatility, potential for options trading opportunities.")
-    else:
-        details.append("Low implied volatility, limited options trading opportunities.")
-
-    if open_interest > 500:
-        score += 2
-        details.append("High open interest, potential for liquid options trading.")
-    else:
-        details.append("Low open interest, limited options trading opportunities.")
 
     return {"score": score, "details": "; ".join(details)}
 

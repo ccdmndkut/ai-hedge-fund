@@ -431,40 +431,6 @@ def analyze_cathie_wood_valuation(financial_line_items: list, market_cap: float)
     }
 
 
-def analyze_options_trading(metrics: list, financial_line_items: list) -> dict:
-    """
-    Analyze options trading strategies and generate options trading signals.
-    """
-    score = 0
-    details = []
-
-    if not metrics or not financial_line_items:
-        return {"score": score, "details": "Insufficient data for options trading analysis"}
-
-    # Example options trading analysis
-    # 1. Check implied volatility
-    # 2. Analyze open interest
-    # 3. Generate options trading signals based on the analysis
-
-    # Placeholder logic for options trading analysis
-    implied_volatility = 0.25  # Example value
-    open_interest = 1000  # Example value
-
-    if implied_volatility > 0.3:
-        score += 2
-        details.append("High implied volatility, potential for options trading opportunities.")
-    else:
-        details.append("Low implied volatility, limited options trading opportunities.")
-
-    if open_interest > 500:
-        score += 2
-        details.append("High open interest, potential for liquid options trading.")
-    else:
-        details.append("Low open interest, limited options trading opportunities.")
-
-    return {"score": score, "details": "; ".join(details)}
-
-
 def generate_cathie_wood_output(
     ticker: str,
     analysis_data: dict[str, any],
