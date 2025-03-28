@@ -14,6 +14,8 @@ class PortfolioDecision(BaseModel):
     quantity: int = Field(description="Number of shares to trade")
     confidence: float = Field(description="Confidence in the decision, between 0.0 and 100.0")
     reasoning: str = Field(description="Reasoning for the decision")
+    options_strategy: str = Field(default="", description="Options strategy to implement, if any")
+    options_details: str = Field(default="", description="Details on implementing the options strategy")
 
 
 class PortfolioManagerOutput(BaseModel):
@@ -36,6 +38,8 @@ def portfolio_management_agent(state: AgentState):
     current_prices = {}
     max_shares = {}
     signals_by_ticker = {}
+    options_analysis = {}
+    
     for ticker in tickers:
         progress.update_status("portfolio_management_agent", ticker, "Processing analyst signals")
 
@@ -53,9 +57,13 @@ def portfolio_management_agent(state: AgentState):
         # Get signals for the ticker
         ticker_signals = {}
         for agent, signals in analyst_signals.items():
-            if agent != "risk_management_agent" and ticker in signals:
+            if agent != "risk_management_agent" and agent != "options_trader_agent" and ticker in signals:
                 ticker_signals[agent] = {"signal": signals[ticker]["signal"], "confidence": signals[ticker]["confidence"]}
         signals_by_ticker[ticker] = ticker_signals
+        
+        # Get options analysis for the ticker
+        if "options_trader_agent" in analyst_signals and ticker in analyst_signals["options_trader_agent"]:
+            options_analysis[ticker] = analyst_signals["options_trader_agent"][ticker]
 
     progress.update_status("portfolio_management_agent", None, "Making trading decisions")
 
@@ -66,6 +74,7 @@ def portfolio_management_agent(state: AgentState):
         current_prices=current_prices,
         max_shares=max_shares,
         portfolio=portfolio,
+        options_analysis=options_analysis,
         model_name=state["metadata"]["model_name"],
         model_provider=state["metadata"]["model_provider"],
     )
@@ -94,6 +103,7 @@ def generate_trading_decision(
     current_prices: dict[str, float],
     max_shares: dict[str, int],
     portfolio: dict[str, float],
+    options_analysis: dict[str, dict],
     model_name: str,
     model_provider: str,
 ) -> PortfolioManagerOutput:
@@ -118,6 +128,12 @@ def generate_trading_decision(
                 * Cover quantity must be ≤ current short position shares
                 * Short quantity must respect margin requirements
               
+              - For options strategies:
+                * Consider implementing options strategies alongside equity positions
+                * Evaluate options recommendations based on their risk level and alignment with equity signals
+                * Only recommend options strategies if they align with overall portfolio direction
+                * Consider unusual options activity that might signal smart money positioning
+              
               - The max_shares values are pre-calculated to respect position limits
               - Consider both long and short opportunities based on signals
               - Maintain appropriate risk management with both long and short exposure
@@ -128,6 +144,8 @@ def generate_trading_decision(
               - "short": Open or add to short position
               - "cover": Close or reduce short position
               - "hold": No action
+              
+              In addition to the primary action, you may also recommend options strategies when appropriate.
 
               Inputs:
               - signals_by_ticker: dictionary of ticker → signals
@@ -136,6 +154,7 @@ def generate_trading_decision(
               - portfolio_positions: current positions (both long and short)
               - current_prices: current prices for each ticker
               - margin_requirement: current margin requirement for short positions
+              - options_analysis: options market data, signals and strategy recommendations
               """,
             ),
             (
@@ -154,6 +173,9 @@ def generate_trading_decision(
               Portfolio Cash: {portfolio_cash}
               Current Positions: {portfolio_positions}
               Current Margin Requirement: {margin_requirement}
+              
+              Options Analysis:
+              {options_analysis}
 
               Output strictly in JSON with the following structure:
               {{
@@ -162,7 +184,9 @@ def generate_trading_decision(
                     "action": "buy/sell/short/cover/hold",
                     "quantity": integer,
                     "confidence": float between 0 and 100,
-                    "reasoning": "string"
+                    "reasoning": "string",
+                    "options_strategy": "strategy name or empty string if none",
+                    "options_details": "details on implementing the strategy or empty string if none"
                   }},
                   "TICKER2": {{
                     ...
@@ -184,6 +208,7 @@ def generate_trading_decision(
             "portfolio_cash": f"{portfolio.get('cash', 0):.2f}",
             "portfolio_positions": json.dumps(portfolio.get('positions', {}), indent=2),
             "margin_requirement": f"{portfolio.get('margin_requirement', 0):.2f}",
+            "options_analysis": json.dumps(options_analysis, indent=2),
         }
     )
 

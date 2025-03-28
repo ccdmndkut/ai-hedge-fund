@@ -1,6 +1,8 @@
 import os
 import pandas as pd
 import requests
+import json
+from datetime import datetime, timedelta
 
 from data.cache import get_cache
 from data.models import (
@@ -250,33 +252,162 @@ def get_company_news(
     return all_news
 
 
+def get_option_chain(ticker: str) -> dict:
+    """
+    Fetch options chain data for a given ticker.
+    Returns a dictionary with 'calls' and 'puts' keys containing options data.
+    
+    Due to API limitations in this example, this returns simulated options data.
+    In a real implementation, this would fetch from a financial data provider like:
+    - Interactive Brokers, TD Ameritrade, or other brokers' APIs
+    - Market data providers like IEX Cloud, Polygon.io, etc.
+    """
+    # Check cache first
+    if cached_data := _cache.get_option_chain(ticker):
+        return cached_data
+    
+    # If not in cache, we'll generate synthetic options data based on current stock price
+    # In a real implementation, this would fetch from an actual API
+    try:
+        # Get current stock price to generate realistic option chain
+        prices = get_prices(
+            ticker=ticker,
+            start_date=(datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d"),
+            end_date=datetime.now().strftime("%Y-%m-%d"),
+        )
+        
+        if not prices:
+            return {"calls": [], "puts": []}
+        
+        current_price = prices[-1].close
+        
+        # Generate synthetic options data
+        options_data = _generate_synthetic_option_chain(ticker, current_price)
+        
+        # Cache the results
+        _cache.set_option_chain(ticker, options_data)
+        
+        return options_data
+    
+    except Exception as e:
+        print(f"Error fetching options data for {ticker}: {str(e)}")
+        return {"calls": [], "puts": []}
+
+
+def _generate_synthetic_option_chain(ticker: str, current_price: float) -> dict:
+    """Generate synthetic options data for simulation purposes."""
+    expiration_dates = [
+        (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d"),  # 1 week
+        (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d"),  # 1 month
+        (datetime.now() + timedelta(days=90)).strftime("%Y-%m-%d"),  # 3 months
+    ]
+    
+    # Generate strike prices around current price
+    strike_step = round(current_price * 0.025, 2)  # 2.5% increments
+    strikes = [round(current_price + (i - 10) * strike_step, 2) for i in range(21)]  # 10 below, 10 above current price
+    
+    calls = []
+    puts = []
+    
+    for expiration in expiration_dates:
+        days_to_expiry = (datetime.strptime(expiration, "%Y-%m-%d") - datetime.now()).days
+        
+        for strike in strikes:
+            # Calculate synthetic Greeks and IV based on strike distance from current price
+            distance_from_current = abs(strike - current_price) / current_price
+            time_factor = days_to_expiry / 365
+            
+            # Calculate synthetic option prices and greeks
+            call_price = max(0.1, (current_price - strike) + (current_price * 0.05 * time_factor))
+            put_price = max(0.1, (strike - current_price) + (current_price * 0.05 * time_factor))
+            
+            # Basic Black-Scholes-inspired calculations (very simplified)
+            implied_vol = 0.25 + distance_from_current  # Higher IV for strikes further from current price
+            
+            # Volume distribution: more volume near the money
+            atm_factor = 1 - min(1, distance_from_current * 5)
+            base_volume = int(5000 * atm_factor)
+            volume_noise = int(base_volume * 0.5)  # 50% random variation
+            
+            # Realistic volume and open interest
+            volume = max(1, base_volume + int(volume_noise * (0.5 - 0.5)))
+            open_interest = max(10, volume * 4 + int(volume * 2 * (0.5 - 0.5)))
+            
+            # Add more volume to puts for lower strikes (put skew)
+            if strike < current_price:
+                put_vol_skew = 1 + (current_price - strike) / current_price
+            else:
+                put_vol_skew = 1
+                
+            # Generate call option
+            call = {
+                "ticker": ticker,
+                "strike": strike,
+                "expiration": expiration,
+                "type": "call",
+                "bid": round(call_price * 0.95, 2),
+                "ask": round(call_price * 1.05, 2),
+                "last": round(call_price, 2),
+                "volume": volume,
+                "openInterest": open_interest,
+                "impliedVolatility": round(implied_vol, 4),
+                "delta": round(max(0, min(1, 0.5 + (current_price - strike) / (current_price * 0.2))), 4),
+                "gamma": round(max(0, 4 * atm_factor * time_factor), 4),
+                "theta": round(-call_price * 0.01 / max(1, days_to_expiry), 4),
+                "vega": round(current_price * 0.01 * time_factor, 4),
+            }
+            
+            # Generate put option
+            put = {
+                "ticker": ticker,
+                "strike": strike,
+                "expiration": expiration,
+                "type": "put",
+                "bid": round(put_price * 0.95, 2),
+                "ask": round(put_price * 1.05, 2),
+                "last": round(put_price, 2),
+                "volume": int(volume * put_vol_skew),
+                "openInterest": int(open_interest * put_vol_skew),
+                "impliedVolatility": round(implied_vol * put_vol_skew, 4),
+                "delta": round(min(0, max(-1, -0.5 + (current_price - strike) / (current_price * 0.2))), 4),
+                "gamma": round(max(0, 4 * atm_factor * time_factor), 4),
+                "theta": round(-put_price * 0.01 / max(1, days_to_expiry), 4),
+                "vega": round(current_price * 0.01 * time_factor, 4),
+            }
+            
+            calls.append(call)
+            puts.append(put)
+    
+    return {"calls": calls, "puts": puts}
+
 
 def get_market_cap(
     ticker: str,
     end_date: str,
 ) -> float | None:
-    """Fetch market cap from the API."""
-    financial_metrics = get_financial_metrics(ticker, end_date)
-    market_cap = financial_metrics[0].market_cap
-    if not market_cap:
+    """Get market capitalization for a ticker on a specific date."""
+    metrics = get_financial_metrics(ticker, end_date, limit=1)
+    if not metrics:
         return None
-
-    return market_cap
+    
+    return metrics[0].market_cap
 
 
 def prices_to_df(prices: list[Price]) -> pd.DataFrame:
-    """Convert prices to a DataFrame."""
+    """Convert a list of Price objects to a DataFrame."""
     df = pd.DataFrame([p.model_dump() for p in prices])
-    df["Date"] = pd.to_datetime(df["time"])
-    df.set_index("Date", inplace=True)
-    numeric_cols = ["open", "close", "high", "low", "volume"]
-    for col in numeric_cols:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-    df.sort_index(inplace=True)
+    df["time"] = pd.to_datetime(df["time"])
+    df.set_index("time", inplace=True)
+    
+    # Convert numeric columns to float
+    for col in ["open", "high", "low", "close", "volume"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col])
+            
     return df
 
 
-# Update the get_price_data function to use the new functions
 def get_price_data(ticker: str, start_date: str, end_date: str) -> pd.DataFrame:
+    """Convenience function to get price data as a DataFrame."""
     prices = get_prices(ticker, start_date, end_date)
     return prices_to_df(prices)

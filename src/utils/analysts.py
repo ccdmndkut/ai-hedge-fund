@@ -5,6 +5,8 @@ from agents.bill_ackman import bill_ackman_agent
 from agents.cathie_wood import cathie_wood_agent
 from agents.charlie_munger import charlie_munger_agent
 from agents.fundamentals import fundamentals_agent
+from agents.options_expert import options_expert_agent
+from agents.options_trader import options_trader_agent
 from agents.phil_fisher import phil_fisher_agent
 from agents.sentiment import sentiment_agent
 from agents.stanley_druckenmiller import stanley_druckenmiller_agent
@@ -68,6 +70,16 @@ ANALYST_CONFIG = {
         "display_name": "Valuation Analyst",
         "agent_func": valuation_agent,
         "order": 10,
+    },
+    "options_trader": {
+        "display_name": "Options Trader",
+        "agent_func": options_trader_agent,
+        "order": 11,
+    },
+    "options_expert": {
+        "display_name": "Options Expert",
+        "agent_func": options_expert_agent,
+        "order": 12,
     },
 }
 
